@@ -1,0 +1,27 @@
+# Example: publish your skill to nullapt.dev on every version tag
+# Copy this to YOUR skill repository, not this action's repo.
+
+name: Publish skill
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build WASM (Rust example)
+        run: |
+          rustup target add wasm32-wasi
+          cargo build --target wasm32-wasi --release
+          cp target/wasm32-wasi/release/*.wasm skill.wasm
+
+      - name: Publish to nullapt registry
+        uses: nullapt/nullapt-action@v1
+        with:
+          skill-json: SKILL.json
+          wasm-file: skill.wasm
+          private-key: ${{ secrets.NULLAPT_SIGNING_KEY }}

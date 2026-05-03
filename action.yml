@@ -1,0 +1,86 @@
+name: 'nullapt publish'
+description: 'Sign and publish a nullapt skill to the registry on tag push'
+author: 'nullapt'
+branding:
+  icon: 'package'
+  color: 'green'
+
+inputs:
+  skill-json:
+    description: 'Path to SKILL.json'
+    required: true
+    default: 'SKILL.json'
+  wasm-file:
+    description: 'Path to the compiled .wasm binary'
+    required: true
+    default: 'skill.wasm'
+  private-key:
+    description: 'Ed25519 private key (PEM), stored as a repository secret'
+    required: true
+  registry:
+    description: 'Registry URL (defaults to nullapt.dev)'
+    required: false
+    default: 'https://registry.nullapt.dev'
+  nullapt-version:
+    description: 'nullapt CLI version to install'
+    required: false
+    default: 'latest'
+
+outputs:
+  skill-name:
+    description: 'Published skill name'
+    value: ${{ steps.publish.outputs.skill-name }}
+  skill-version:
+    description: 'Published skill version'
+    value: ${{ steps.publish.outputs.skill-version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install nullapt CLI
+      shell: bash
+      run: |
+        VERSION="${{ inputs.nullapt-version }}"
+        if [ "$VERSION" = "latest" ]; then
+          curl -fsSL https://nullapt.dev/install.sh | sh
+        else
+          curl -fsSL https://nullapt.dev/install.sh | sh -s -- --version "$VERSION"
+        fi
+        echo "$HOME/.nullapt/bin" >> "$GITHUB_PATH"
+
+    - name: Write signing key
+      shell: bash
+      run: |
+        mkdir -p "$HOME/.nullapt/keys"
+        printf '%s' "${{ inputs.private-key }}" > "$HOME/.nullapt/keys/private.pem"
+        chmod 600 "$HOME/.nullapt/keys/private.pem"
+
+    - name: Verify WASM binary exists
+      shell: bash
+      run: |
+        if [ ! -f "${{ inputs.wasm-file }}" ]; then
+          echo "::error::WASM binary not found at ${{ inputs.wasm-file }}"
+          exit 1
+        fi
+        cp "${{ inputs.wasm-file }}" "$(dirname ${{ inputs.skill-json }})/skill.wasm" 2>/dev/null || true
+
+    - name: Sign manifest
+      shell: bash
+      run: |
+        nullapt sign "${{ inputs.skill-json }}" --key "$HOME/.nullapt/keys/private.pem"
+
+    - name: Publish skill
+      id: publish
+      shell: bash
+      run: |
+        nullapt publish "${{ inputs.skill-json }}" --registry "${{ inputs.registry }}"
+        NAME=$(jq -r '.name'    "${{ inputs.skill-json }}")
+        VER=$(jq  -r '.version' "${{ inputs.skill-json }}")
+        echo "skill-name=$NAME"    >> "$GITHUB_OUTPUT"
+        echo "skill-version=$VER"  >> "$GITHUB_OUTPUT"
+        echo "::notice::Published $NAME@$VER to ${{ inputs.registry }}"
+
+    - name: Clean up key
+      if: always()
+      shell: bash
+      run: rm -f "$HOME/.nullapt/keys/private.pem"
