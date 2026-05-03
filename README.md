@@ -20,9 +20,9 @@ jobs:
       # Build your WASM binary first (language-specific)
       - name: Build WASM (Rust)
         run: |
-          rustup target add wasm32-wasi
-          cargo build --target wasm32-wasi --release
-          cp target/wasm32-wasi/release/*.wasm skill.wasm
+          rustup target add wasm32-wasip1
+          cargo build --target wasm32-wasip1 --release
+          cp target/wasm32-wasip1/release/*.wasm skill.wasm
 
       - name: Publish to nullapt registry
         uses: nullapt/nullapt-action@v1
@@ -52,11 +52,13 @@ jobs:
 ## Setup
 
 1. Generate a signing key pair:
+
    ```bash
-   nullapt keygen --output ./keys
+   nullapt keygen   # writes to ~/.nullapt/keys/ by default
    ```
-2. Add the private key as a repository secret named `NULLAPT_SIGNING_KEY`
-3. The public key is embedded in your `SKILL.json` after you run `nullapt sign`
+
+2. Add the contents of `~/.nullapt/keys/private.pem` as a repository secret named `NULLAPT_SIGNING_KEY`.
+3. The public key is embedded in your `SKILL.json` after you run `nullapt sign`.
 
 ## Self-hosted registry
 
